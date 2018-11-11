@@ -1,2 +1,3 @@
+[*.{js,jsx,html,sass,cpp,h,hpp}]
 indent_style = tab
 indent_size = 4
