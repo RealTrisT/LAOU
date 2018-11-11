@@ -131,4 +131,6 @@
 		void kill();
 	};
 
+#else
+	#error Sockets Not Implemented For The Current Platform
 #endif

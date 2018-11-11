@@ -191,4 +191,6 @@ const char* SockClient::SockClientException::errDescriptors[(unsigned)ErrCodes::
 	"Operation Attempt on Uninitiated Socket"
 };
 
+#else
+	#error Sockets Not Implemented For The Current Platform
 #endif
