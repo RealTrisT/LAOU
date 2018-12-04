@@ -1,0 +1,17 @@
+{
+"stupid_boy": 
+	[
+		1,
+		"stupid boy position 2",
+		1,
+		8,
+		true, 
+		false, 
+		null,
+		{
+			"AYE" :	421,
+			"AYO" : 13.37,
+			"EYE" :	null
+		}
+	]
+}

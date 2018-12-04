@@ -69,27 +69,73 @@ void sizedelete(const char* str){
 	delete[] str;
 }
 
+#define parsefail(str, i) if(err){err->errorstr = str; err->strerror = i;}
+
 //receives a pointer to the delimiting character
-bool JSON::Object::parse(const char* s, const char** e){
+bool JSON::Object::parse(const char* s, const char** e, ParseError* err){	const char* lastSpos = s;
+	s++;
 	for (;;){
-		s = getAfterSpace(s+1);
-		if(!*s || *s != '"')return false;
-		char* strbegin = (char*)(s+1);
-		s = getQuotationsEnd(s);
-		if(!s || s == strbegin)return false;
+		/////////////////////////////////////////////////////////////////////
+		///////////////////////////////START/////////////////////////////////
+		/////////////////////////////////////////////////////////////////////
+		s = getAfterSpace(s);											//remove any type of whitespace before our object actually starts
+
+		if(!*s){
+			parsefail("Json string ended assumingly permaturely.", lastSpos);
+			goto destroyProgressAndFailObj;
+		}else if(*s != '"'){
+			parsefail("Bad name formatting, spec dictates use of quotes is required.", lastSpos);
+			goto destroyProgressAndFailObj;
+		}lastSpos = s;
+
+		/////////////////////////////////////////////////////////////////////
+		////////////////////////////MEMBER NAME//////////////////////////////
+		/////////////////////////////////////////////////////////////////////
+
+		char* strbegin = (char*)(s+1);									//beginning of the name string
+		s = getQuotationsEnd(s);										//find end of name string
+		if(!s){
+			parsefail("No closing quotes for this field name.", lastSpos);
+			goto destroyProgressAndFailObj;
+		}else if(s == strbegin){
+			parsefail("Empty field name.", lastSpos);
+			goto destroyProgressAndFailObj;
+		}lastSpos = s;
 
 		unsigned nameLen = s - strbegin;								//name string length
 		this->fieldNames.push_back(new char[nameLen+1]);				//allocation to new element of vector
 		memcpy(this->fieldNames[this->fieldAmount], strbegin, nameLen);	//copy of the string
 		this->fieldNames[this->fieldAmount][nameLen] = '\0';			//null-terminate
 
+		/////////////////////////////////////////////////////////////////////
+		/////////////////////////////INDICATOR///////////////////////////////
+		/////////////////////////////////////////////////////////////////////
+
 		s = getAfterSpace(s+1);
-		if(!*s || *s != ':')goto destroyProgressAndFailObj_n;				//TODO: nullcheck probably unnecessary
+		if(!*s){
+			parsefail("No closing quotes for this field name.", lastSpos+1);
+			goto destroyProgressAndFailObj_n;
+		}else if(*s != ':'){
+			parsefail("Missing \":\" to indicate object corresponding to name.", lastSpos+1);
+			goto destroyProgressAndFailObj_n;
+		}lastSpos = s;
+
 		s = getAfterSpace(s+1);
-		if(!*s)goto destroyProgressAndFailObj_n;							//TODO: nullcheck probably unnecessary
+		if(!*s){
+			parsefail("Json string ended assumingly permaturely.", lastSpos+1);
+			goto destroyProgressAndFailObj_n;
+		}lastSpos = s;
+
+		/////////////////////////////////////////////////////////////////////
+		//////////////////////////////MEMBER/////////////////////////////////
+		/////////////////////////////////////////////////////////////////////
 
 		this->fields.push_back(detectTypeAndInstanciate(*s));
-		if(!this->fields[this->fieldAmount]->parse(s, &s))goto destroyProgressAndFailObj_i;
+		if(!this->fields[this->fieldAmount]->parse(s, &s, err)) goto destroyProgressAndFailObj_i; lastSpos = s;
+
+		/////////////////////////////////////////////////////////////////////
+		/////////////////////////////SEPARATOR///////////////////////////////
+		/////////////////////////////////////////////////////////////////////
 
 		s = getAfterSpace(s);
 
@@ -97,7 +143,13 @@ bool JSON::Object::parse(const char* s, const char** e){
 			this->fieldAmount++; break;
 		}else if(*s == ','){
 			this->fieldAmount++; s++;
-		}else goto destroyProgressAndFailObj_i;
+		}else if(!*s){
+			parsefail("Json string ended assumingly permaturely.", lastSpos);
+			goto destroyProgressAndFailObj_n;
+		}else{
+			parsefail("Bad or missing separator.", lastSpos);
+			goto destroyProgressAndFailObj_i;
+		}lastSpos = s;
 	}
 
 	*e = s+1;
@@ -108,7 +160,7 @@ destroyProgressAndFailObj_i:
 	delete this->fields[this->fieldAmount];			//destroy current instance
 destroyProgressAndFailObj_n:
 	delete[] this->fieldNames[this->fieldAmount];	//destroy current name
-
+destroyProgressAndFailObj:
 	this->destroy();								//destroy all the ones that were created in previous iterations of the loop
 	return false;
 }
@@ -123,17 +175,27 @@ void JSON::Object::destroy(){
 	this->fields.clear();
 }
 
-bool JSON::Array::parse(const char* s, const char** e){
+bool JSON::Array::parse(const char* s, const char** e, ParseError* err){	const char* lastSpos = s;
+	s++;
 	for(;;){
-		s = getAfterSpace(s+1);
+		s = getAfterSpace(s);
+		if(!*s){parsefail("Json string ended assumingly permaturely.", lastSpos+1); goto destroyProgressAndFailArr;} lastSpos = s;
+
 		this->elements.push_back(detectTypeAndInstanciate(*s));
-		if(!this->elements[this->elementAmount]->parse(s, &s))goto destroyProgressAndFailArr;
+		if(!this->elements[this->elementAmount]->parse(s, &s, err))goto destroyProgressAndFailArr; lastSpos = s;
+
 		s = getAfterSpace(s);
 		if(*s == ','){
 			this->elementAmount++; s++;
 		}else if(*s == ']'){
 			this->elementAmount++; break;
-		}else goto destroyProgressAndFailArr;
+		}else if(!*s){
+			parsefail("Json string ended assumingly permaturely.", lastSpos);
+			goto destroyProgressAndFailArr;
+		}else{ 
+			parsefail("Bad or missing separator.", lastSpos);
+			goto destroyProgressAndFailArr; 
+		}lastSpos = s;
 	}
 
 	*e = s+1;
@@ -152,11 +214,12 @@ void JSON::Array::destroy(){
 	}this->elements.clear();
 }
 
-bool JSON::Null::parse(const char* s, const char** e){
+bool JSON::Null::parse(const char* s, const char** e, ParseError* err){
 	if(*(unsigned int*)s == *(unsigned int*)"null"){
 		*e = s+4; 
 		return true;
 	}
+	parsefail("This is not a valid value.", s);
 	return false;
 }
 
@@ -164,26 +227,27 @@ void JSON::Null::destroy(){
 	return;
 }
 
-bool JSON::NumberValue::parse(const char* s, const char** e){
+bool JSON::NumberValue::parse(const char* s, const char** e, ParseError* err){
 	char dotCount = 0, eCount = 0;
+	unsigned nrStringSize = 0; char* elstr = 0;
 	const char* ts = s;
 
 	for (;;++ts){
 		if(*ts <= '9' && *ts >= '0'){
 			continue;
 		}else if(*ts == 'e' || *ts == 'E'){
-			if(ts == s)return false;
+			if(ts == s)goto destroyProgressAndFailNum;
 			eCount++; continue;
 		}else if(*ts == '.'){
-			if(ts == s)return false; //NOTE: this might be allowed maybe? .25 seems like something that'd be readable
+			if(ts == s)goto destroyProgressAndFailNum; //NOTE: this might be allowed maybe? .25 seems like something that'd be readable
 			dotCount++; continue;
 		}else break;
 	}
 
-	if(ts == s || eCount > 1 || dotCount > 1)return false;
+	if(ts == s || eCount > 1 || dotCount > 1)goto destroyProgressAndFailNum;
 
-	unsigned nrStringSize = ts - s;
-	char* elstr = new char[nrStringSize+1];
+	nrStringSize = ts - s;
+	elstr = new char[nrStringSize+1];
 	memcpy(elstr, s, nrStringSize);
 	elstr[nrStringSize] = '\0';
 
@@ -200,6 +264,9 @@ bool JSON::NumberValue::parse(const char* s, const char** e){
 	delete[] elstr;
 	*e = s + nrStringSize;
 	return true;
+destroyProgressAndFailNum:
+	parsefail("This is not a valid value.", s);
+	return false;
 }
 
 void JSON::NumberValue::destroy(){
@@ -208,14 +275,14 @@ void JSON::NumberValue::destroy(){
 }
 
 
-bool JSON::BooleanValue::parse(const char* s, const char** e){
+bool JSON::BooleanValue::parse(const char* s, const char** e, ParseError* err){
 	if(*(unsigned*)s == *(unsigned*)"true"){
 		*e = s+4;
 		this->data = true;
 	}else if(*(unsigned*)s == *(unsigned*)"fals" && s[4] == 'e'){
 		*e = s+5;
 		this->data = false;
-	}else return false;
+	}else {parsefail("This is not a valid value.", s); return false;}
 	return true;
 }
 
@@ -223,9 +290,12 @@ void JSON::BooleanValue::destroy(){
 	return;
 }
 
-bool JSON::StringValue::parse(const char* s, const char** e){
+bool JSON::StringValue::parse(const char* s, const char** e, ParseError* err){
 	char* end = (char*)getQuotationsEnd(s);
-	if(!*end)return false;
+	if(!*end){
+		parsefail("Json string ended assumingly permaturely.", s);
+		return false;
+	}
 	s++;
 
 	unsigned length = end-s;
@@ -264,43 +334,10 @@ JSON::Element& JSON::Array::operator[](unsigned i){
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-JSON::Element* JSON::parse(const char* s){
+JSON::Element* JSON::parse(const char* s, ParseError* err){
 	s = getAfterSpace(s);
 	Element* result = detectTypeAndInstanciate(*s);
-	if(!result->parse(s, &s)){
+	if(!result->parse(s, &s, err)){
 		delete result;
 		return 0;
 	}return result;

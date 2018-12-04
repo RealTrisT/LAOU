@@ -13,10 +13,15 @@ struct JSON{
 		JSONTYPE_NUMBER,
 	};
 
+	struct ParseError{
+		const char* errorstr;
+		const char* strerror;
+	};
+
 	struct Element{
 		Element(JSONTYPE jt) : type(jt){}
 		JSONTYPE type;
-		virtual bool parse(const char*, const char**) = 0;
+		virtual bool parse(const char*, const char**, ParseError* = 0) = 0;
 		virtual void destroy() = 0;
 	};
 
@@ -25,7 +30,7 @@ struct JSON{
 		Element& operator[](const char*);
 
 
-		bool parse(const char*, const char**);
+		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();
 
 		std::vector<char*> 			fieldNames;
@@ -38,7 +43,7 @@ struct JSON{
 		Array() : Element(JSONTYPE_ARRAY){}
 		Element& operator[](unsigned);
 
-		bool parse(const char*, const char**);
+		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();	
 
 		std::vector<Element*> elements;
@@ -48,7 +53,7 @@ struct JSON{
 	struct Null : public Element{
 		Null() : Element(JSONTYPE_NULL){}
 
-		bool parse(const char* s, const char** e);
+		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();	
 	};
 
@@ -60,7 +65,7 @@ struct JSON{
 
 		NumberValue() : Element(JSONTYPE_NUMBER){}
 
-		bool parse(const char* s, const char** e);
+		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();
 
 		NUMTYPE type;
@@ -70,7 +75,7 @@ struct JSON{
 	struct BooleanValue : public Element{
 		BooleanValue() : Element(JSONTYPE_BOOLEAN){}
 
-		bool parse(const char* s, const char** e);
+		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();
 
 		bool data;		
@@ -79,13 +84,13 @@ struct JSON{
 	struct StringValue : public Element{
 		StringValue() : Element(JSONTYPE_STRING){}
 
-		bool parse(const char* s, const char** e);
+		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();
 
 		const char* string;
 	};
 
 
-	static Element* parse(const char* s);
+	static Element* parse(const char* s, ParseError* = 0);
 	static void destroy(Element*);
 };
