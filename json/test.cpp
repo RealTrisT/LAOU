@@ -20,13 +20,13 @@ int main(int argc, char const *argv[]){
 	JSON::Element* jsonObj = JSON::parse(yeet, &err);
 	printf("object: %p\n",jsonObj);
 	if(jsonObj){
-		printf("%s\n", ((JSON::StringValue&)((JSON::Array&)(*(JSON::Object*)
-			
-			jsonObj)["stupid_boy"])
-			[1])
-			.string
-			
-		);
+		try{
+			printf("%s\n",
+				(*jsonObj)["stupid_boy"][1].getString().c_str()	
+			);
+		}catch( const char* yee ){
+			puts(yee);
+		}
 	}else{
 		std::string elstr = yeet; elstr.insert(err.strerror-yeet, KRED "|" KNRM);
 		printf("----------%s---------\n%s", err.errorstr, elstr.c_str());

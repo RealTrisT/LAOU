@@ -121,8 +121,10 @@
 
 		char* addr;
 		unsigned short port;
-	private:
+	protected: //                       TODO: sock is protected
+	public:
 		int sock;
+	private:
 		sockaddr_in server;
 		States SockState;
 	public:

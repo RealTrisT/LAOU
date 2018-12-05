@@ -19,14 +19,25 @@ struct JSON{
 	};
 
 	struct Element{
-		Element(JSONTYPE jt) : type(jt){}
+		friend struct JSON;
+		virtual Element& operator[](const char* n){	throw "Unimplemented for this type";}
+		virtual Element& operator[](unsigned i){	throw "Unimplemented for this type";}
+		virtual std::string getString(){			throw "Unimplemented for this type";}
+		virtual double getDouble(){					throw "Unimplemented for this type";}
+		virtual long long int getInt(){				throw "Unimplemented for this type";}
+		virtual bool getBool(){						throw "Unimplemented for this type";}
+		virtual bool isNull(){						return false;						}
 		JSONTYPE type;
+	private:
+		Element(JSONTYPE jt) : type(jt){}
+	protected:
 		virtual bool parse(const char*, const char**, ParseError* = 0) = 0;
 		virtual void destroy() = 0;
 	};
 
 	struct Object : public Element{
 		Object() : Element(JSONTYPE_OBJECT){}
+
 		Element& operator[](const char*);
 
 
@@ -41,6 +52,7 @@ struct JSON{
 
 	struct Array : public Element{
 		Array() : Element(JSONTYPE_ARRAY){}
+		
 		Element& operator[](unsigned);
 
 		bool parse(const char*, const char**, ParseError* = 0);
@@ -55,6 +67,8 @@ struct JSON{
 
 		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();	
+
+		bool isNull();
 	};
 
 	struct NumberValue : public Element{
@@ -70,6 +84,9 @@ struct JSON{
 
 		NUMTYPE type;
 		void* data;
+
+		long long int getInt();
+		double getDouble();
 	};
 
 	struct BooleanValue : public Element{
@@ -77,6 +94,8 @@ struct JSON{
 
 		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();
+
+		bool getBool();
 
 		bool data;		
 	};
@@ -87,7 +106,9 @@ struct JSON{
 		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();
 
-		const char* string;
+		std::string getString();
+
+		const char* istring;
 	};
 
 

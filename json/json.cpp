@@ -300,21 +300,46 @@ bool JSON::StringValue::parse(const char* s, const char** e, ParseError* err){
 
 	unsigned length = end-s;
 
-	this->string = new char[length+1];
-	memcpy((void*)this->string, s, length);
-	((char*)this->string)[length] = '\0';
+	this->istring = new char[length+1];
+	memcpy((void*)this->istring, s, length);
+	((char*)this->istring)[length] = '\0';
 
 	*e = s+length+1; //+1 for the '"'
 	return true;
 }
 
 void JSON::StringValue::destroy(){
-	delete[] this->string;
+	delete[] this->istring;
 }
 
 
 
 
+
+
+
+
+std::string JSON::StringValue::getString(){
+	return this->istring;
+}
+
+bool JSON::Null::isNull(){
+	return true;
+}
+
+bool JSON::BooleanValue::getBool(){
+	return this->data;
+}
+
+long long int JSON::NumberValue::getInt(){
+	if(this->type == NUMTYPE_FLOATINGPOINT)throw "This is a floating point value.";
+	return *(long long int*)this->data;
+}
+
+double JSON::NumberValue::getDouble(){
+	if(this->type == NUMTYPE_INTEGER)throw "This is an integer value.";
+	return *(double*)this->data;
+}
 
 JSON::Element& JSON::Object::operator[](const char* s){
 	for (unsigned i = 0; i < this->fieldAmount; ++i){
@@ -326,7 +351,6 @@ JSON::Element& JSON::Array::operator[](unsigned i){
 	if(i >= this->elementAmount)throw "Out of bounds index for array.";
 	return *this->elements[i];
 }
-
 
 
 
