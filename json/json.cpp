@@ -94,6 +94,7 @@ bool JSON::Object::parse(const char* s, const char** e, ParseError* err){	const 
 
 		char* strbegin = (char*)(s+1);									//beginning of the name string
 		s = getQuotationsEnd(s);										//find end of name string
+
 		if(!s){
 			parsefail("No closing quotes for this field name.", lastSpos);
 			goto destroyProgressAndFailObj;

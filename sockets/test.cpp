@@ -1,7 +1,8 @@
 #include <stdio.h>
 #include <string.h>
-
 #include "SSLSockClient.h"
+#include "../http/http.h"
+#include "../json/json.h"
 
 const char* req1 =
 	"POST /login HTTP/1.1\r\n"
@@ -13,19 +14,21 @@ const char* req1 =
 	"{\"apikey\":\"CDCZTRC8SB7V3ZT9\",\"username\":\"century69errors7c\",\"userkey\":\"XJUYUNO5917N47L1\"}"
 ;
 
-
 int main(int argc, char const *argv[]){
-
 	char buffer[40000] = {0};
-
 	SSLSockClient::InitOpenSSL();
 
 	try{
 		SSLSockClient s = SSLSockClient("api.thetvdb.com", 443);
 		s.write((char*)req1, strlen(req1));
 		s.read(buffer, 40000);
-		puts(buffer);
-		
+
+		ResponseHttp reqInfo;
+		if(HttpParseResponse(buffer, &reqInfo)){
+			JSON::Element* parsed = JSON::parse(reqInfo.contentStart);
+			puts((*parsed)["token"].getString().c_str());
+		}else{puts("merda no parse de http");}
+
 	}catch (SSLSockClient::SSLSockClientException e){
 		printf("[%u]%s\n", e.ErrorCode(), e.Message());
 	}catch (SockClient::SockClientException e){
@@ -33,6 +36,5 @@ int main(int argc, char const *argv[]){
 	}
 
 	SSLSockClient::TermOpenSSL();
-
 	return 0;
 }

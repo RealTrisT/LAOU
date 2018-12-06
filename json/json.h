@@ -44,10 +44,10 @@ struct JSON{
 		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();
 
-		std::vector<char*> 			fieldNames;
+		std::vector<char*> 		fieldNames;
 		std::vector<Element*>	fields;
 
-		unsigned fieldAmount;
+		unsigned fieldAmount = 0;
 	};
 
 	struct Array : public Element{
