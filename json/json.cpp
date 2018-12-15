@@ -79,6 +79,7 @@ bool JSON::Object::parse(const char* s, const char** e, ParseError* err){	const 
 		///////////////////////////////START/////////////////////////////////
 		/////////////////////////////////////////////////////////////////////
 		s = getAfterSpace(s);											//remove any type of whitespace before our object actually starts
+		if(*s == '}')break;
 
 		if(!*s){
 			parsefail("Json string ended assumingly permaturely.", lastSpos);
@@ -180,6 +181,7 @@ bool JSON::Array::parse(const char* s, const char** e, ParseError* err){	const c
 	s++;
 	for(;;){
 		s = getAfterSpace(s);
+		if(*s == ']')break;
 		if(!*s){parsefail("Json string ended assumingly permaturely.", lastSpos+1); goto destroyProgressAndFailArr;} lastSpos = s;
 
 		this->elements.push_back(detectTypeAndInstanciate(*s));
@@ -353,6 +355,10 @@ JSON::Element& JSON::Array::operator[](unsigned i){
 	return *this->elements[i];
 }
 
+unsigned JSON::Array::length(){
+	return this->elementAmount;
+}
+
 
 
 
@@ -369,5 +375,6 @@ JSON::Element* JSON::parse(const char* s, ParseError* err){
 }
 
 void JSON::destroy(Element* el){
+	el->destroy();
 	delete el;
 }

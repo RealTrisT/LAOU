@@ -23,6 +23,7 @@ struct JSON{
 		virtual Element& operator[](const char* n){	throw "Unimplemented for this type";}
 		virtual Element& operator[](unsigned i){	throw "Unimplemented for this type";}
 		virtual std::string getString(){			throw "Unimplemented for this type";}
+		virtual unsigned length(){					throw "Unimplemented for this type";}
 		virtual double getDouble(){					throw "Unimplemented for this type";}
 		virtual long long int getInt(){				throw "Unimplemented for this type";}
 		virtual bool getBool(){						throw "Unimplemented for this type";}
@@ -54,6 +55,7 @@ struct JSON{
 		Array() : Element(JSONTYPE_ARRAY){}
 		
 		Element& operator[](unsigned);
+		unsigned length();
 
 		bool parse(const char*, const char**, ParseError* = 0);
 		void destroy();	
