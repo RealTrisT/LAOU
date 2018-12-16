@@ -1,5 +1,5 @@
 #include "json.h"
-#include "stdlib.h"
+#include <stdlib.h>
 #include <string.h>
 
 #include <stdio.h>
@@ -40,7 +40,7 @@ char* getAfterSpace(const char* s){
 	return (char*)s;
 }
 
-JSON::Element* detectTypeAndInstanciate(char firstLetter){
+JSON::Element* JSON::detectTypeAndInstanciate(char firstLetter){
 	if(firstLetter == '{'){			//object
 		return new JSON::Object();
 	}else if(firstLetter == '['){	//array
@@ -71,7 +71,7 @@ void sizedelete(const char* str){
 
 #define parsefail(str, i) if(err){err->errorstr = str; err->strerror = i;}
 
-//receives a pointer to the delimiting character
+JSON::Object::Object() : Element(JSONTYPE_OBJECT), fieldAmount(0), fields(std::vector<Element*>()), fieldNames(std::vector<char*>()){}
 bool JSON::Object::parse(const char* s, const char** e, ParseError* err){	const char* lastSpos = s;
 	s++;
 	for (;;){
@@ -173,10 +173,11 @@ void JSON::Object::destroy(){
 		this->fields[i]->destroy(); 
 		delete this->fields[i];
 	}
-	this->fieldNames.clear();
-	this->fields.clear();
+	this->fieldNames.clear(); this->fieldNames.~vector();
+	this->fields.clear(); this->fields.~vector();
 }
 
+JSON::Array::Array() : Element(JSONTYPE_ARRAY), elements(std::vector<Element*>()), elementAmount(0){}
 bool JSON::Array::parse(const char* s, const char** e, ParseError* err){	const char* lastSpos = s;
 	s++;
 	for(;;){
@@ -214,7 +215,7 @@ void JSON::Array::destroy(){
 	for (unsigned i = 0; i < this->elementAmount; ++i){
 		this->elements[i]->destroy();
 		delete this->elements[i];
-	}this->elements.clear();
+	}this->elements.clear(); this->elements.~vector();
 }
 
 bool JSON::Null::parse(const char* s, const char** e, ParseError* err){
@@ -231,7 +232,7 @@ void JSON::Null::destroy(){
 }
 
 bool JSON::NumberValue::parse(const char* s, const char** e, ParseError* err){
-	char dotCount = 0, eCount = 0;
+	char dotCount = 0, eCount = 0, minusCount = 0;
 	unsigned nrStringSize = 0; char* elstr = 0;
 	const char* ts = s;
 
@@ -244,10 +245,12 @@ bool JSON::NumberValue::parse(const char* s, const char** e, ParseError* err){
 		}else if(*ts == '.'){
 			if(ts == s)goto destroyProgressAndFailNum; //NOTE: this might be allowed maybe? .25 seems like something that'd be readable
 			dotCount++; continue;
+		}else if (*ts == '-'){
+			minusCount++;
 		}else break;
 	}
 
-	if(ts == s || eCount > 1 || dotCount > 1)goto destroyProgressAndFailNum;
+	if(ts == s || eCount > 1 || dotCount > 1 || minusCount > 1)goto destroyProgressAndFailNum;
 
 	nrStringSize = ts - s;
 	elstr = new char[nrStringSize+1];
@@ -274,7 +277,7 @@ destroyProgressAndFailNum:
 
 void JSON::NumberValue::destroy(){
 	if(this->type == NUMTYPE_FLOATINGPOINT) delete (double*)data;
-	else 									delete (long long int*)data;	
+	else 									delete (long long int*)data;
 }
 
 
@@ -378,3 +381,18 @@ void JSON::destroy(Element* el){
 	el->destroy();
 	delete el;
 }
+
+
+
+JSON::Instance::Instance(const char* s, ParseError* err){this->elm = JSON::parse(s, err);}
+JSON::Instance::~Instance(){if(this->elm)JSON::destroy(this->elm); this->elm = 0;}
+bool JSON::Instance::bad(){return !this->elm;}
+
+JSON::Element& JSON::Instance::operator[](const char* n){	return (*this->elm)[n];			}
+JSON::Element& JSON::Instance::operator[](unsigned i){	return (*this->elm)[i];				}
+std::string JSON::Instance::getString(){			return (*this->elm).getString();}
+unsigned JSON::Instance::length(){				return (*this->elm).length();		}
+double JSON::Instance::getDouble(){			return (*this->elm).getDouble();}
+long long int JSON::Instance::getInt(){	return (*this->elm).getInt();		}
+bool JSON::Instance::getBool(){		return (*this->elm).getBool();	}
+bool JSON::Instance::isNull(){	return (*this->elm).isNull();		}

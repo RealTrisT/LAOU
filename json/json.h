@@ -2,8 +2,6 @@
 #include <string>
 //TODO: JSON should prolly be a namespace
 struct JSON{
-	JSON(const char* s);
-
 	enum JSONTYPE{
 		JSONTYPE_OBJECT,
 		JSONTYPE_ARRAY,
@@ -36,8 +34,22 @@ struct JSON{
 		virtual void destroy() = 0;
 	};
 
+	//wrapper to make everything simpler.
+	struct Instance{
+		Instance(const char* s, ParseError* = 0);
+		~Instance();
+		bool bad();
+
+		Element& operator[](const char* n);		Element& operator[](unsigned i);		std::string getString();		unsigned length();
+		double getDouble();						long long int getInt();					bool getBool();					bool isNull();
+	private:
+		Element* elm;
+	};
+
+private://--------------------------------------------------------------------NOT AVAILABLE TO THE PUBLIC----------------------------------
+	
 	struct Object : public Element{
-		Object() : Element(JSONTYPE_OBJECT){}
+		Object();
 
 		Element& operator[](const char*);
 
@@ -48,11 +60,11 @@ struct JSON{
 		std::vector<char*> 		fieldNames;
 		std::vector<Element*>	fields;
 
-		unsigned fieldAmount = 0;
+		unsigned fieldAmount;
 	};
 
 	struct Array : public Element{
-		Array() : Element(JSONTYPE_ARRAY){}
+		Array();
 		
 		Element& operator[](unsigned);
 		unsigned length();
@@ -61,7 +73,7 @@ struct JSON{
 		void destroy();	
 
 		std::vector<Element*> elements;
-		unsigned elementAmount;
+		unsigned elementAmount = 0;
 	};
 
 	struct Null : public Element{
@@ -113,6 +125,7 @@ struct JSON{
 		const char* istring;
 	};
 
+	static Element* detectTypeAndInstanciate(char firstLetter);
 
 	static Element* parse(const char* s, ParseError* = 0);
 	static void destroy(Element*);
