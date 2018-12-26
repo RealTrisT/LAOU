@@ -9,6 +9,12 @@
 
 //#define Interval24Hrs 86400
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////CREDENTIALS///////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 struct TVDBcreds{
 	TVDBcreds(const char* API_KEY, const char* username, const char* userID){
 		unsigned API_KEY_len = strlen(API_KEY)+1;
@@ -77,6 +83,15 @@ struct TVDBcreds{
 	char* userID;
 };
 
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////TOKEN//////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 struct TVDBtoken{
 	TVDBtoken(char* tkn){
 		if(!tkn){this->token = 0;this->issueTime = 0;}
@@ -125,6 +140,7 @@ struct TVDBtoken{
 
 	bool getFromLogin(SSLSockClient* s, TVDBcreds* creds){
 		try{
+			//------------------------------------------------------------------------------------------------------------BUILD QUERY
 			std::string json = (std::string)"{\"apikey\":\"" + creds->apikey + "\"";
 			if(creds->username && creds->userID)
 				json += ", \"username\":\"" + creds->username + "\", \"userkey\":\"" + creds->userID + "\"";
@@ -137,24 +153,37 @@ struct TVDBtoken{
 								"Content-Length: " + std::to_string(json.length()) + 
 								"\r\n\r\n" + json;
 
+			//------------------------------------------------------------------------------------------------------------SEND QUERY
 			if(!s->write(query.c_str(), query.length()))return false;
 
+			//------------------------------------------------------------------------------------------------------------READ QUERY RESULT
 			char buffr[4096]; unsigned amountRead = 0;
 			bool readResult = false
 			ResponseHttp resp;
 
-			
+			HttpResponse resp = HttpResponse();
 
-			while((readResult = s->read(buffr, 4096, &amountRead)) && !HttpParseResponse(buffr, &resp))return false;
+			while(readResult = s->read(buffr, 4096, &amountRead)){
+				resp.add(buffr, amountRead);
+				if(resp.isBad())return false;
+				if(resp.isOver())break;
+			}if(!resp.isOver())return false;
+
+			//------------------------------------------------------------------------------------------------------------INTERPRET JSON
+			std::string jsonstr = std::string(resp.content.getBuffer(), resp.content.getSize());
+			JSON::Instance jsn = JSON::Instance(jsonstr.c_str());
+			jsonstr = jsonstr["token"].getString();						//repurpose
 
 
+			//------------------------------------------------------------------------------------------------------------BUILD OURSELVES
+			this->issueTime = time(0);
+			if(this->token)delete[] this->token;
+			size_t strsize = jsonstr.size();
+			this->token = new char[strsize+1];
+			memcpy(this->token, jsonstr.c_str(), strsize);
+			this->token[strsize] = '\0';
 
-			if(amountRead != 4096){
-
-			}else{
-
-			}
-
+			//------------------------------------------------------------------------------------------------------------FIN
 		}catch (SSLSockClient::SSLSockClientException e){
 			//printf("[%u]%s\n", e.ErrorCode(), e.Message());
 			return false;
@@ -173,14 +202,69 @@ struct TVDBtoken{
 };
 
 
-struct TVDBsession{
-	static bool Create(SSLSockClient* s, TVDBtoken* tkn, TVDBcreds* creds){
-		if(!tkn->isValid(86400)){
 
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////SESSION//////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+struct TVDBsession{
+	static bool Create(TVDBsession* tvs, TVDBtoken* tkn, TVDBcreds* creds){
+		try{
+			tvs->sock = new SSLSockClient("api.thetvdb.com", 443);
+		}catch (SSLSockClient::SSLSockClientException e){
+			printf("[%u]%s\n", e.ErrorCode(), e.Message());	//TODO chang dis
+			return false;
+		}catch (SockClient::SockClientException e){
+			printf("[%u]%s\n", e.ErrorCode(), e.Message());	//TODO: chang dis
+			return false;
 		}
+
+		if(!tkn->isValid(86400) && !tkn->getFromLogin(tvs->sock, creds)){
+			delete tvs->sock;
+			return false;
+		}
+
+		tvs->token = tkn;
+		tvs->credentials = creds;
+		return true;
 	}
+
+	bool GetReq(char* loc, std::string* result){
+		std::string req = (std::string)"GET " + loc + " HTTP/1.1\r\n"
+						  "Authorization: Bearer " + token->token + "\r\n"
+						  "Host: api.thetvdb.com\r\n"
+						  "Accept-Encoding: chunked"
+						  "\r\n"
+
+		//------------------------------------------------------------------------------------------------------------SEND QUERY
+		if(!s->write(query.c_str(), query.length()))return false;
+
+		//------------------------------------------------------------------------------------------------------------READ QUERY RESULT
+		char buffr[4096]; unsigned amountRead = 0;
+		bool readResult = false
+		ResponseHttp resp;
+
+		HttpResponse resp = HttpResponse();
+
+		while(readResult = s->read(buffr, 4096, &amountRead)){
+			resp.add(buffr, amountRead);
+			if(resp.isBad())return false;
+			if(resp.isOver())break;
+		}if(!resp.isOver())return false;
+
+		//------------------------------------------------------------------------------------------------------------INTERPRET JSON
+		*result = std::string(resp.content.getBuffer(), resp.content.getSize());
+	}
+
+	bool PostReq(char* loc, char* data, unsigned datalen){
+
+	}
+
 	SSLSockClient* sock;
 	TVDBtoken* token;
 	TVDBcreds* credentials;
-	bool hasToken;
 };
