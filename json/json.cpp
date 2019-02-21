@@ -12,7 +12,7 @@ char getDelimiterEndChar(char delimiterBegin){
 //returns pointer to the "closing" quotation marks
 char* getQuotationsEnd(const char* s){
 	if(*(s++) != '"')return 0;
-	while(*s && !(*s == '"' && *(s-1) != '\\'))s++;
+	while(*s && !(*s == '"' && *(s-1) != '\\'))s++;		//TODO: fix this for the "\\" case
 	return *s ? (char*)s : (char*)0;
 }
 
