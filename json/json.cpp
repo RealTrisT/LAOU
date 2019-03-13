@@ -11,8 +11,14 @@ char getDelimiterEndChar(char delimiterBegin){
 
 //returns pointer to the "closing" quotation marks
 char* getQuotationsEnd(const char* s){
-	if(*(s++) != '"')return 0;
-	while(*s && !(*s == '"' && *(s-1) != '\\'))s++;		//TODO: fix this for the "\\" case
+	if(*s != '"')return 0;						//if it doesn't begin in ", wreck the whole thing
+	while(*(++s)){								//while we have characters
+		if(*s == '"'){							//if it's quotation marks
+			unsigned back = 0;					//look for an even number of back slashes
+			while(*(s-1-back) == '\\')back++;	//it means that the last slash will not escape these quotation marks
+			if(!(back%2))return s;				//if it's even return this is the end of the string, return
+		}
+	}
 	return *s ? (char*)s : (char*)0;
 }
 
