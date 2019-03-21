@@ -1,0 +1,101 @@
+//#include "db.h"
+#include <cstring>
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////          SAVABLE          /////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+uint32_t 			 Savable::dependency_amount(){return 0;}
+Savable::Dependency* Savable::dependencies()	 {return 0;}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////           TABLE           /////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////////////////////////
+template<class T>
+uint32_t 	Table<T>::saved_size()									{return sizeof(Table);}							
+template<class T>
+void     	Table<T>::save(void* data_block)						{memcpy(data_block, (void*)this, sizeof(Table));}
+template<class T>
+void	 	Table<T>::restore(void* data_block, Savable* instance)	{memcpy(instance, data_block, sizeof(Table));}
+
+template<class T>
+void Table<T>::fix_passive_dependency(ForeignDependency* depp, T* old_ptr, T* new_ptr){
+	depp->internal_entry_loc += new_ptr - old_ptr;
+	*(char**)depp->agressive_dep->internal_ptr_loc += (char*)new_ptr - (char*)old_ptr;
+}
+
+template<class T>
+void Table<T>::fix_agressive_dependency(InsiderDependency* depp, T* old_ptr, T* new_ptr){
+	*(char**)(&depp->internal_ptr_loc) += (char*)new_ptr - (char*)old_ptr;
+}
+
+template<class T>
+void Table<T>::reloc(T* old_ptr, T* new_ptr){									//for when the table reallocates
+	for (unsigned i = 0; i < this->passiveDeps.size(); ++i)		fix_passive_dependency(&this->passiveDeps[i], old_ptr, new_ptr);
+	for (unsigned i = 0; i < this->agressiveDeps.size(); ++i) fix_agressive_dependency(&this->agressiveDeps[i], old_ptr, new_ptr);
+}
+
+template<class T>
+void Table<T>::repos(T* old_ptr, T* new_ptr, uint32_t entry_amount){				//for when there are removals, cuz what's in the end will go to the space where stuff was removed
+	for (unsigned i = 0; i < this->passiveDeps.size(); ++i){
+		if(this->passiveDeps[i].internal_entry_loc - old_ptr < entry_amount){
+			fix_external_dependency(&this->passiveDeps[i], old_ptr, new_ptr);
+		}
+	}
+
+	char* old_ptr_c = old_ptr, * new_ptr_c = new_ptr;
+	unsigned entry_amount_c = entry_amount*sizeof(T);
+
+	for (unsigned i = 0; i < this->agressiveDeps.size(); ++i){
+		if((char*)this->agressiveDeps[i].internal_ptr_loc - old_ptr_c < entry_amount_c){
+			fix_agressive_dependency(&this->agressiveDeps[i], old_ptr, new_ptr);
+		}
+	}
+}
+
+template<class T>
+void Table<T>::fix_foregin_passive_tables(){
+	for (unsigned i = 0; i < this->agressiveDeps.size(); ++i){
+		if(!this->agressiveDeps[i].passive_dep)continue;
+		this->agressiveDeps[i].passive_dep->agressive_dep = &this->agressiveDeps[i];
+	}
+}
+
+template<class T>
+void Table<T>::fix_foregin_agressive_tables(){
+	for (unsigned i = 0; i < this->passiveDeps.size(); ++i){
+		this->passiveDeps[i].agressive_dep->passive_dep = &this->passiveDeps[i];
+	}
+}
+
+template<class T>
+template<class U>
+void Table<T>::register_dependency(void* from_ptr, Table<U>* foregin, void* to_entry){
+	InsiderDependency* old_loc_i = &this->agressiveDeps[0];									//save our agressive dependency table's address
+	this->agressiveDeps.push_back((InsiderDependency){(void**)from_ptr, 0});				//push a new dependency onto it
+	InsiderDependency* new_loc_i = &this->agressiveDeps[0];									//save our new agressive dependency table's address
+	if(new_loc_i != old_loc_i)fix_foregin_passive_tables();									//if the pointer changed, then it was reallocated, and all the tables that point to it need fixing, so fix em
+	InsiderDependency* new_elem  = &this->agressiveDeps[this->agressiveDeps.size()-1];		//and save the pointer of the newly created agressive dependency
+
+	typename Table<U>::ForeignDependency* old_loc_f = &foregin->passiveDeps[0];			//now save the address of the other table's passive dependency array
+	//typename Table<U>::ForeignDependency yee = ;
+	typename Table<U>::ForeignDependency fd; 
+	fd.agressive_dep = (typename Table<U>::InsiderDependency*)new_elem;
+	fd.internal_entry_loc = (U*)to_entry;
+	//{(typename Table<U>::InsiderDependency*)new_elem, (T*)to_entry};
+	
+	foregin->passiveDeps.push_back(fd);			//push ourselves onto the other table's passive dependencies
+	typename Table<U>::ForeignDependency* new_loc_f = &foregin->passiveDeps[0];			//save the new address of the other table's passive dependendency array
+	if(old_loc_f != new_loc_f)foregin->fix_foregin_agressive_tables();						//if the locations are different, reallocation happened, so fix the agressive dependencies to this foreign table
+	else new_elem->passive_dep = (typename Table<T>::ForeignDependency*)&foregin->passiveDeps[foregin->passiveDeps.size()-1];		//otherwise, fix just ours
+}
+
+
+template<class T>
+T* Table<T>::push(const T& p){
+	T* prev_ptr = &this->data[0];
+	this->data.push_back(p);
+	T* curr_ptr = &this->data[0];
+	if(prev_ptr != curr_ptr)this->reloc(prev_ptr, curr_ptr);
+	return curr_ptr + this->data.size();
+}
