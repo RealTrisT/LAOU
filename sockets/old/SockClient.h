@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Sock.h"
 
 #ifdef _WIN32
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -11,38 +10,72 @@
 
 	//WHEN ON WINDOWS, COMPILE WITH "-lws2_32"
 	#define WIN32_LEAN_AND_MEAN
-	
-	//////////////////////////////////
-	#undef _WIN32_WINNT 			//
-	#define _WIN32_WINNT 0x501		// idk why tf this works. windows bullshit. shrug
-	#include <ws2tcpip.h>			//
-	//////////////////////////////////
+	//#define _WIN32_WINNT _WIN32_WINNT_NT4			// Windows NT 4.0  
+	//#define _WIN32_WINNT _WIN32_WINNT_WIN2K		// Windows 2000  
+	//#define _WIN32_WINNT _WIN32_WINNT_WINXP		// Windows XP  
+	//#define _WIN32_WINNT _WIN32_WINNT_WS03		// Windows Server 2003  
+	//#define _WIN32_WINNT _WIN32_WINNT_WIN6		// Windows Vista  
+	//#define _WIN32_WINNT _WIN32_WINNT_VISTA		// Windows Vista  
+	//#define _WIN32_WINNT _WIN32_WINNT_WS08		// Windows Server 2008  
+	//#define _WIN32_WINNT _WIN32_WINNT_LONGHORN	// Windows Vista  
+	//#define _WIN32_WINNT _WIN32_WINNT_WIN7		// Windows 7  
+	//#define _WIN32_WINNT _WIN32_WINNT_WIN8		// Windows 8  
+	//#define _WIN32_WINNT _WIN32_WINNT_WINBLUE		// Windows 8.1  
+	//#define _WIN32_WINNT _WIN32_WINNT_WINTHRESHOLD// Windows 10  
+	  #define _WIN32_WINNT _WIN32_WINNT_WIN10		// Windows 10
+	#include <ws2tcpip.h>
 
 
-	struct SockClient : Sock {
-		bool Build(const char* addr, unsigned short port);
+	struct SockClient {
+		enum struct States {
+			Uninited,
+			WSAInited,
+			AddrinfoGotten,
+			SockConnected
+		};
+		struct SockClientException {
+			friend struct SockClient;
+			private:
+				enum struct ErrCodes {
+					WSASTARTUP_FAILED,
+					GETADDRINFO_FAILED,
+					SOCKCREATE_FAILED,
+					SOCKCONNECT_FAILED,
+					SOCKRECV_FAILED,
+					SOCKSEND_FAILED,
+					SOCKUNINITED,
+					ERRAMOUNT
+				};
+				ErrCodes errCode;
+				unsigned additionalErrcode;
+				static const char* errDescriptors[(unsigned)ErrCodes::ERRAMOUNT];
 
-		bool Write(void* buffer, unsigned buffersize, unsigned* bytes_written = 0);
+			public:
+				SockClientException(ErrCodes rc, unsigned arc) : errCode(rc), additionalErrcode(arc) {}
+				const char* Message() { return errDescriptors[(unsigned char)errCode]; }
+				//const char* Message = errDescriptors[(unsigned)errCode];
+				unsigned ErrorCode() { return additionalErrcode; }
+		};
+		SockClient();
+		SockClient(const char* paddr, unsigned short pport);
+		~SockClient();
 
-		bool Read(void* buffer, unsigned buffersize, unsigned* bytes_read = 0);
-
-		void Kill();
-
-
-	protected:
+	private:
 		char* addr;
 		unsigned short port;
 
 		addrinfo hints;
 		WSADATA wsaData;
-		//States SockState;
+		States SockState;
 		addrinfo* addrInfo;
 		SOCKET connectSocket;
 
 		bool updateAddrInfo(int* result = 0);
+	public:
+		bool write(void* buffer, unsigned buffersize);
+		bool read(void* buffer, unsigned buffersize, unsigned* bytesReceived = 0);
+		void kill();
 	};
-
-	
 
 #elif __linux__
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
